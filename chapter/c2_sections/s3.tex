@@ -1,0 +1,66 @@
+\section{图网络的嵌入算法概述}
+
+由于图网络数据一般具有大量的节点，通常具有较高的维度，因而很难被传统的基于特征的方法处理。而已有的研究证明，节点的低维嵌入在较大规模图网络中，能够作为较好的特征输入，例如节点分类、链路预测和异常检测\citing{cai2018comprehensive}。
+
+图嵌入算法即成为了降低网络维度，并解决该问题的一种方式。图嵌入算法的基本思路是将网络中的节点特征嵌入到维度更低的空间中，并保证在压缩后的向量空间中，相似的节点依然能够更接近，即尽可能保留拓扑的相似度关系。
+
+以下是一些图网络的嵌入算法的概述，它们将在后续研究中被使用到。
+
+\subsection{图的嵌入}
+
+首先介绍图的嵌入的定义。对于一个图而言，它的嵌入是指它的元素的映射。具体而言，对于一个图 $G<V,E>$ 而言，它的节点嵌入是它顶点的映射关系，如公式 \ref{graph_embedding} 所示：
+\begin{equation} \label{graph_embedding}
+f:v_i\rightarrow y_i \in R^d, \forall i \in [n]
+\end{equation}
+
+图的嵌入算法 f 能够保证节点属性在将维度降至 $d(d<<n)$ 的情况下依然能够保留节点之间的相似度关系。同时，也能够通过类似的过程，将图的其它元素（边、路径等）转化为低维向量。
+
+\subsection{GraphSAGE 模型}
+
+GraphSAGE 模型\citing{hamilton2017inductive}是为了解决经典图卷积网络需要大量图数据输入、无法实现归纳学习等特点而提出的特征聚合方法。在介绍 GraphSAGE 模型前先介绍图卷积网络的概念。
+
+\subsubsection{图卷积网络}
+
+图卷积神经网络\citing{kipf2016semi}是一种图嵌入方法，它的主要目标是通过消息传播和更新的方法，使用多个图卷积函数（即多个卷积层），学习一个图卷积函数，用以将自身和邻居的特征聚合，并输出节点的表示。
+
+然而，传统的 GCN 模型在面对大规模数据集上存在诸多问题\citing{gao2018large}。首先，GCN 的嵌入算法涉及到对整个图的特征矩阵进行多层变换，这意味着它自身具有较高的复杂度；其次，训练 GCN 无法实现归纳学习，在每一次模型更新时都需要对整个图进行重新计算。
+
+\subsubsection{基本结构}
+
+而 GraphSAGE 模型是一种利用采样和聚合节点特征，进而实现归纳学习的图网络算法。它的基本思路是利用已有的拓扑信息，对节点的邻居进行采样，并通过聚合函数的方式，将高阶的邻居信息在不同层次上进行聚合，从而得到最终的嵌入，并用于下游任务。
+
+GraphSAGE 通过以下方式进行迭代，从而获得节点的高阶嵌入：
+\begin{equation} \label{graphsage_iter_aggr}
+h^k_{N(v)} \leftarrow AGGREGATE_k(\{ h_u^{k-1}, \forall u \in N(v)\})
+\end{equation}
+\begin{equation} \label{graphsage_iter_concat}
+    h^k_v \leftarrow \sigma(W^k \cdot CONCAT(h_v^{k-1}, h^k_{N(v)}))
+\end{equation}
+
+它首先依照公式\ref{graphsage_iter_aggr}对节点 v 的邻居的 $(k-1)$ 层嵌入进行聚合，然后按照式\ref{graphsage_iter_concat}中的方法与自身 $(k-1)$ 层特征拼接从而得到第 $k$ 层的特征。它在无监督学习下使用针对邻居的对数近似和针对非邻居的负对数近似使得相邻节点尽可能拥有相同的嵌入。
+
+在GraphSAGE模型中，$AGGREGATE$ 即聚合函数\citing{hamilton2017inductive}是最重要的部分，它决定了如何结合采样到的邻居节点的特征。关于聚合函数的选择有两个条件：
+
+\begin{enumerate}
+    \item 可导，因为要反向传递来训练目标的聚合函数参数。
+    \item 对称，这里的对称指的是对输入不敏感，因为在聚合的时候，图中的节点关系并没有顺序上的特征。
+\end{enumerate}
+
+\subsection{随机游走和图嵌入}
+
+\subsubsection{图网络的随机游走算法}
+
+随机游走\citing{pearson1905problem}是一种典型的基于图网络的采样过程，它被定义为一种以特定随机分布在图网络上选取路径的方式。随机游走的输入是一个图 $G<V,E>$，输出一个路径的集合 $\{ P_i|P = Random\_Walk(G) \}$。随机游走的采样规则可由公式\ref{markov_chain}给出，它实质上是一种有限马尔可夫链：
+\begin{equation} \label{markov_chain}
+p_{t+1}(a) = \sum_{b:(a,b)\in E} \frac{\omega(a,b)}{\Sigma_{a}\omega(a,b)} p_t(b)
+\end{equation}
+
+其中，它包含一个用以根据当前信息（图 G 及其节点 V 边 E 的某种度量值及其组合）决定转移概率的 $\omega$ 函数。
+
+\subsubsection{基于 node2vec 的节点表征 和 基于 path2vec 的路径表征}
+
+在通过随机游走获得采样路径后，即可根据这些路径来生成节点的表征。node2vec \citing{grover2016node2vec}即是一种采用此种方法的节点嵌入模型。
+
+在自然语言处理中，基于语句的 Skip-gram 和词袋的 word2vec 模型被用于对句子中的词语进行建模。node2vec 模型则假设图中的节点可以被视作为可用词语的全集，对节点的路径采样能够体现出图的拓扑结构，正如对词语的组织能够体现出语义信息一样。受此启发，将随机采样的路径送入文本挖掘的嵌入模型中能够很好的反映出节点的拓扑特性 \citing{grover2016node2vec}。
+
+path2vec \citing{kutuzov2018learning} 是对 node2vec 模型的拓展，也是 doc2vec 模型在图网络中的对等模型，它拓展了 node2vec 的采样方式，通过预定义的图距离度量方式对节点进行嵌入，进而能够学习到比 node2vec 更加高阶的拓扑结构关系。
